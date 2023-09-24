@@ -80,77 +80,154 @@ def normalize(array):
                                                         # Questo valore minimo rappresenterà il minimo valore presente nei dati.
     max_val = np.max(array)                             # Calcola il valore massimo all'interno dell'array array utilizzando la funzione np.max.
                                                         # Questo valore massimo rappresenterà il massimo valore presente nei dati.
-    normalized_array = (array - min_val) / (max_val - min_val)                           # Calcola la normalizzazione Min-Max
+    normalized_array = (array - min_val) / (max_val - min_val)       # Calcola la normalizzazione Min-Max
     return normalized_array
 
 
+######  FUNZIONE PREPROCESSING
+##
+##  Questa funzione esegue il preprocessing dei dati di input.
+##
+##  INPUT:
+##  - list_data: lista con struttura (misure, n°timestamp)
+##  - num_sub_seq: numero di sottosequenze da campionare
+##  - len_sub_seq: lunghezza delle sottosequenze da campionare
+##
+##  OUTPUT:
+##  - lista di dati dopo il preprocessing
+##  - groundtruth modificato in base all'uso di concat o meno
 
-# Define the Gaussian function
-def gaussian(x, *params):
-    num_gaussians = len(params) // 3
-    result = np.zeros_like(x)
-    for i in range(num_gaussians):
-        A = params[i * 3]
-        mu = params[i * 3 + 1]
-        sigma = params[i * 3 + 2]
-        result += A * np.exp(-(x - mu)**2 / (2 * sigma**2))
-    return result
+def preprocessing(list_data, num_sub_seq, len_sub_seq):
 
+    numeric_data = np.asarray(list_data, dtype=float)           # Converte la lista di dati in un array NumPy di tipo float
+    numeric_data = numeric_data.T                               # Traspone l'array per avere le misure come colonne e i timestamp come righe
 
-#def preprocessing(list_data, num_sub_seq, len_sub_seq):
-    """
-    :param list_data: lista con struttura (misure, n°timestamp)
-    :param num_sub_seq: numero di sottosequenze da campionare
-    :param len_sub_seq: lunghezza delle sottosequenze da campionare
-    :return: lista di dati aveti subito il preprocessing
-    :return: groundtruth modificato in base all'uso di concat o meno
-    """
+    numeric_data[:, 0] = normalize(numeric_data[:, 0])          # Normalizza le coordinate X ed Y utilizzando la funzione 'normalize'
+    numeric_data[:, 1] = normalize(numeric_data[:, 1])          # La normalizzazione Min-Max scala i valori tra 0 e 1
 
-    numeric_data = np.asarray(list_data, dtype=np.float)
-    numeric_data = numeric_data.T
+    diff = numeric_data[1:, 0:2] - numeric_data[:-1, 0:2]       # Calcola la differenza tra le coppie di punti consecutivi nelle colonne 0 e 1
 
-    # Procediamo alla normalizzazione delle coordinate x ed y
-    # Semplice normalizzazione min-max: si potrebbe usare anche quella di scikit-learn
-    numeric_data[:, 0] = normalize(numeric_data[:, 0])
-    numeric_data[:, 1] = normalize(numeric_data[:, 1])
+    product = numeric_data[1:, 3] * numeric_data[:-1, 3]        # Calcola il prodotto tra i valori delle colonne 3 (presumibilmente 'TIME') in punti consecutivi
 
-    diff = numeric_data[1:, 0:2] - numeric_data[:-1, 0:2]
-
-    product = numeric_data[1:, 3] * numeric_data[:-1, 3]
-
-    numeric_data = np.ndarray((len(diff), 3))
+    numeric_data = np.ndarray((len(diff), 3))                   # Crea un nuovo array 'numeric_data' con tre colonne
     numeric_data[:, 0:2] = diff
     numeric_data[:, 2] = product
 
-    numeric_data = rhs(numeric_data, num_sub_seq, len_sub_seq)
-    
-    list_data = numeric_data
-    if len(list_data.shape) == 2:
+    numeric_data = rhs(numeric_data, num_sub_seq, len_sub_seq)  # Applica la funzione 'rhs' per ottenere nuovi dati basati sulle sottosequenze
+
+    list_data = numeric_data                                    # Modifica 'list_data' per adattarlo ai nuovi dati
+    if len(list_data.shape) == 2:                               # Aggiunge una dimensione se la forma è bidimensionale
         list_data = list_data[np.newaxis, :, :]
 
-    return np.asarray(list_data)
+    return np.asarray(list_data)                                # Restituisce l'array di dati preprocessato
 
 
-
-######  FUNZIONE RHS        
+######  FUNZIONE RHS
 ##
-##      L'algoritmo RHS genera sottosequenze casuali dai punti minimi e massimi e successivamente visualizza tali sottosequenze in un grafico.
-##      INPUT:   - numeric_data: sequenza di dati rappresentata come un array NumPy dove otteniamo gli rhs dei dati;
-##               - numero_sotto_sequenze: il numero di sottosequenze da estrarre;
-##               - ampiezza_sotto_sequenze: ampiezza delle sottosequenze da estrarre. 
-##      OUTPUT:  - list_sottosequenze: array NumPy contenente le sottosequenze estratte dalla sequenza di dati iniziale, dati sottoforma di rhs.
+##  Questa funzione calcola gli rhs dei dati di input.
+##
+##  INPUT:
+##  - numeric_data: np.array contenente una sequenza di dati (n_timestamp, n_feature)
+##  - numero_sotto_sequenze: numero di sottosqquenze da estrarre
+##  - ampiezza_sotto_sequenze: ampiezza delle sottosequenze da estrarre
+##
+##  OUTPUT:
+##  - Dati sottoforma di rhs
+
+def rhs(numeric_data, numero_sotto_sequenze, ampiezza_sotto_sequenze):
+
+    lunghezza_sequenza = len(numeric_data)
+    list_sottosequenze = list()
+    for i in range(numero_sotto_sequenze):
+        if lunghezza_sequenza > ampiezza_sotto_sequenze:
+            starting_point = np.random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)
+        else:
+            starting_point = 0  # Gestione di un caso in cui lunghezza_sequenza <= ampiezza_sotto_sequenze
+        list_sottosequenze.append(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :])
+
+    return np.array(list_sottosequenze)
 
 #def rhs(numeric_data, numero_sotto_sequenze, ampiezza_sotto_sequenze):
+    lunghezza_sequenza = len(numeric_data)
+    list_sottosequenze = []  # Utilizziamo una lista vuota invece di list()
 
-    lunghezza_sequenza = len(numeric_data)          # Calcola la lunghezza totale della sequenza di dati  
-    list_sottosequenze = list()                     # Inizializza una lista vuota per memorizzare le sottosequenze estratte
+    # Crea un set per tracciare le sottosequenze uniche
+    sottosequenze_set = set()
+
+    while len(list_sottosequenze) < numero_sotto_sequenze:
+        if lunghezza_sequenza > ampiezza_sotto_sequenze:
+            starting_point = random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)
+        else:
+            starting_point = 0
+
+        sottosequenza = tuple(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :].flatten())
+
+        # Verifica se la sottosequenza è unica
+        if sottosequenza not in sottosequenze_set:
+            sottosequenze_set.add(sottosequenza)
+            list_sottosequenze.append(np.array(sottosequenza).reshape(-1, 3))
+
+    return np.array(list_sottosequenze)
     
-    for i in range(numero_sotto_sequenze):          # Esegue un ciclo per estrarre il numero desiderato di sottosequenze
-  
-        starting_point = np.random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)   # Genera un punto di partenza casuale all'interno 
-                                                                                              # della sequenza             
-           
-        list_sottosequenze.append(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :]) # Estrae la sottosequenza dalla sequenza
-                                                                                                            # di dati ed aggiungi la sottosequenza 
-                                                                                                            # alla lista delle sottosequenze            
-    return np.array(list_sottosequenze)             # Restituisce le sottosequenze come un array NumPy
+######  FUNZIONE BILSTM
+##
+##  Questa funzione crea un modello di rete neurale LSTM bidirezionale.
+##
+##  INPUT:
+##  - units: Numero di unità per le LSTM
+##  - input_shape: Shape di input (numero di timestamp, numero di feature)
+##  - attn_inputs: Flag per l'utilizzo dell'Attention Mechanism
+##  - dropout: Valore di dropout da utilizzare
+##
+##  OUTPUT:
+##  - Modello di rete neurale LSTM bidirezionale
+
+def bilstm(units, input_shape, attn_inputs=False, dropout=0.):
+
+    input = Input(shape=input_shape, name='inputs')                 # Definisci l'input del modello con la forma specificata
+
+    
+    batch = BatchNormalization(axis=-1)(input)                      # Normalizza i dati in ingresso utilizzando la Batch Normalization
+
+    bi_dir = Bidirectional(LSTM(units=units,                        # Configura un livello Bidirectional LSTM (BiLSTM) per l'elaborazione 
+                                                                    # sequenziale dei dati
+        go_backwards=False,                                         # LSTM in avanti
+        dropout=dropout,                                            # Dropout per prevenire l'overfitting
+        return_sequences=attn_inputs),                              # Restituisci sequenze se richiesto dall'Attention Mechanism
+        backward_layer=LSTM(units=units,
+        go_backwards=True,                                          # LSTM all'indietro
+        dropout=dropout,
+        return_sequences=attn_inputs),
+        merge_mode='concat', name='bidirezionale')(batch)           # Concatena i risultati delle LSTM forward e backward
+
+    if attn_inputs:                                                 # Se l'Attention Mechanism è abilitato
+        att = Attention()([bi_dir, bi_dir])                         # Calcola l'Attention tra le sequenze in input e in output
+        drop = Dropout(dropout)(att)                                # Applica il dropout ai risultati dell'Attention
+    else:
+        drop = Dropout(dropout)(bi_dir)                             # Applica il dropout ai risultati delle LSTM
+
+    output = Dense(1, activation='sigmoid')(drop)                   # Layer di output con attivazione sigmoidale
+
+    return Model(inputs=input, outputs=output)                      # Restituisci il modello con input e output definiti
+
+
+######  FUNZIONE GAUSSIAN
+##
+##  Questa funzione calcola una funzione gaussiana con parametri dati.
+##
+##  INPUT:
+##  - x: Array di valori in cui calcolare la funzione gaussiana
+##  - *params: Parametri della gaussiana (A, mu, sigma)
+##
+##  OUTPUT:
+##  - Valori della funzione gaussiana
+
+def gaussian(x, *params):                                       # Calcola il numero di gaussiane basandosi sulla lunghezza dei parametri passati
+    num_gaussians = len(params) // 3
+    result = np.zeros_like(x)                                   # Inizializza un array 'result' con la stessa forma di 'x' contenente zeri
+    for i in range(num_gaussians):                              # Itera attraverso le gaussiane calcolate
+        A = params[i * 3]                                       # Estrae i parametri per la gaussiana corrente (A, mu, sigma)
+        mu = params[i * 3 + 1]
+        sigma = params[i * 3 + 2]
+        result += A * np.exp(-(x - mu)**2 / (2 * sigma**2))     # Calcola i valori della gaussiana per ogni punto in 'x' e sommalo a 'result'
+    return result                                               # Restituisce l'array 'result' contenente la somma delle gaussiane
