@@ -64,24 +64,20 @@ def path_to_paser(path):
 
 ######  FUNZIONE NORMALIZE         
 ##
-##  Questa funzione esegue la normalizzazione dei dati utilizzando il metodo Min-Max. La normalizzazione Min-Max è un processo che scala i
-##  dati in modo che tutti i valori si trovino nell'intervallo compreso tra 0 e 1. Questo processo è utile quando si desidera portare i dati 
-##  in uno specifico intervallo o quando si desidera ridurre la differenza di scala tra diverse colonne di dati. Questa funzione prende 
-##  un array di dati e restituisce una versione normalizzata degli stessi, in cui tutti i valori si trovano nell'intervallo [0, 1]. Questo
-##  è utile per garantire che i dati abbiano la stessa scala e per prepararli all'elaborazione o all'addestramento di modelli di machine 
-##  learning.
+##  Questa funzione esegue la normalizzazione dei dati utilizzando il metodo Min-Max. 
+##  La normalizzazione Min-Max è un processo che scala i dati in modo che tutti i valori si trovino nell'intervallo compreso tra 0 e 1. 
+##  Questo processo è utile quando si desidera portare i dati in uno specifico intervallo o quando si desidera ridurre la differenza di scala tra diverse colonne di dati. 
+##  Questa funzione prende un array di dati e restituisce una versione normalizzata degli stessi, in cui tutti i valori si trovano nell'intervallo [0, 1]. 
+##  Questo è utile per garantire che i dati abbiano la stessa scala e per prepararli all'elaborazione o all'addestramento di modelli di machine learning.
 ##
-##      INPUT:   - array: array contenente i dati (righe, 1);
-##      OUTPUT:  - array: array dei dati normalizzati min-max.
+##      INPUT:   - data: array contenente i dati da normalizzare;
+##      OUTPUT:  - data_normalizzato: array dei dati normalizzati min-max.
 
-def normalize(array):
-    array = np.asarray(array)                           # Questa istruzione converte l'input array in un array NumPy, se non lo è già.
-    min_val = np.min(array)                             # Calcola il valore minimo all'interno dell'array array utilizzando la funzione np.min.
-                                                        # Questo valore minimo rappresenterà il minimo valore presente nei dati.
-    max_val = np.max(array)                             # Calcola il valore massimo all'interno dell'array array utilizzando la funzione np.max.
-                                                        # Questo valore massimo rappresenterà il massimo valore presente nei dati.
-    normalized_array = (array - min_val) / (max_val - min_val)       # Calcola la normalizzazione Min-Max
-    return normalized_array
+
+def normalize(data):
+    min_val = np.min(data)
+    max_val = np.max(data)
+    return (data - min_val) / (max_val - min_val)
 
 
 ######  FUNZIONE PREPROCESSING
@@ -89,37 +85,30 @@ def normalize(array):
 ##  Questa funzione esegue il preprocessing dei dati di input.
 ##
 ##  INPUT:
-##  - list_data: lista con struttura (misure, n°timestamp)
-##  - num_sub_seq: numero di sottosequenze da campionare
-##  - len_sub_seq: lunghezza delle sottosequenze da campionare
+##  - df: DataFrame di Pandas contenente i dati da elaborare;
+##  - num_sub_seq: numero di sottosequenze da campionare;
+##  - len_sub_seq: lunghezza delle sottosequenze da campionare.
 ##
 ##  OUTPUT:
-##  - lista di dati dopo il preprocessing
-##  - groundtruth modificato in base all'uso di concat o meno
+##  - numeric_data: array di dati preprocessati;
+##  - groundtruth: groundtruth modificato in base all'uso di concat o meno.
 
-def preprocessing(list_data, num_sub_seq, len_sub_seq):
-
-    numeric_data = np.asarray(list_data, dtype=float)           # Converte la lista di dati in un array NumPy di tipo float
-    numeric_data = numeric_data.T                               # Traspone l'array per avere le misure come colonne e i timestamp come righe
-
-    numeric_data[:, 0] = normalize(numeric_data[:, 0])          # Normalizza le coordinate X ed Y utilizzando la funzione 'normalize'
-    numeric_data[:, 1] = normalize(numeric_data[:, 1])          # La normalizzazione Min-Max scala i valori tra 0 e 1
-
-    diff = numeric_data[1:, 0:2] - numeric_data[:-1, 0:2]       # Calcola la differenza tra le coppie di punti consecutivi nelle colonne 0 e 1
-
-    product = numeric_data[1:, 3] * numeric_data[:-1, 3]        # Calcola il prodotto tra i valori delle colonne 3 (presumibilmente 'TIME') in punti consecutivi
-
-    numeric_data = np.ndarray((len(diff), 3))                   # Crea un nuovo array 'numeric_data' con tre colonne
+def preprocessing(df: pd.DataFrame, num_sub_seq: int, len_sub_seq: int):
+    numeric_data = df[["X", "Y", "TIME"]].values.astype(np.float)
+    
+    numeric_data[:, 0] = normalize(numeric_data[:, 0])          # Normalizzazione delle colonne X ed Y
+    numeric_data[:, 1] = normalize(numeric_data[:, 1])
+    
+    diff = numeric_data[1:, 0:2] - numeric_data[:-1, 0:2]       # Calcolo della differenza e del prodotto
+    product = numeric_data[1:, 2] * numeric_data[:-1, 2]
+    
+    numeric_data = np.zeros((len(diff), 3))                     # Creazione del nuovo array numeric_data
     numeric_data[:, 0:2] = diff
     numeric_data[:, 2] = product
+    
+    numeric_data = rhs(numeric_data, num_sub_seq, len_sub_seq)  # Estrazione delle sottosequenze
 
-    numeric_data = rhs(numeric_data, num_sub_seq, len_sub_seq)  # Applica la funzione 'rhs' per ottenere nuovi dati basati sulle sottosequenze
-
-    list_data = numeric_data                                    # Modifica 'list_data' per adattarlo ai nuovi dati
-    if len(list_data.shape) == 2:                               # Aggiunge una dimensione se la forma è bidimensionale
-        list_data = list_data[np.newaxis, :, :]
-
-    return np.asarray(list_data)                                # Restituisce l'array di dati preprocessato
+    return numeric_data
 
 
 ######  FUNZIONE RHS
@@ -127,47 +116,31 @@ def preprocessing(list_data, num_sub_seq, len_sub_seq):
 ##  Questa funzione calcola gli rhs dei dati di input.
 ##
 ##  INPUT:
-##  - numeric_data: np.array contenente una sequenza di dati (n_timestamp, n_feature)
-##  - numero_sotto_sequenze: numero di sottosqquenze da estrarre
-##  - ampiezza_sotto_sequenze: ampiezza delle sottosequenze da estrarre
+##  - numeric_data: array contenente una sequenza di dati (n_timestamp, n_feature);
+##  - numero_sotto_sequenze: numero di sottosqquenze da estrarre;
+##  - ampiezza_sotto_sequenze: ampiezza delle sottosequenze da estrarre.
 ##
 ##  OUTPUT:
-##  - Dati sottoforma di rhs
+##  - Dati sottoforma di rhs.
 
 def rhs(numeric_data, numero_sotto_sequenze, ampiezza_sotto_sequenze):
-
-    lunghezza_sequenza = len(numeric_data)
-    list_sottosequenze = list()
-    for i in range(numero_sotto_sequenze):
-        if lunghezza_sequenza > ampiezza_sotto_sequenze:
-            starting_point = np.random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)
+    lunghezza_sequenza = len(numeric_data)                     # Calcola la lunghezza della sequenza di dati in ingresso
+    list_sottosequenze = list()                                # Inizializza una lista vuota per memorizzare le sottosequenze estratte
+    selected_starts = set()                                    # Inizializza un set per tenere traccia dei punti di inizio già selezionati
+    
+    for i in range(numero_sotto_sequenze):                     # Itera per estrarre il numero specificato di sottosequenze
+        if lunghezza_sequenza > ampiezza_sotto_sequenze:       # Verifica se la lunghezza della sequenza è sufficiente per estrarre una sottosequenza
+            starting_point = np.random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze) # Genera un punto di inizio casuale nella sequenza
+            while starting_point in selected_starts:           # Verifica se il punto di inizio è già stato selezionato in precedenza
+                starting_point = np.random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)  # Se sì, genera un nuovo punto di inizio casuale
+            selected_starts.add(starting_point)                # Aggiunge il punto di inizio appena selezionato all'insieme dei punti selezionati
         else:
-            starting_point = 0  # Gestione di un caso in cui lunghezza_sequenza <= ampiezza_sotto_sequenze
-        list_sottosequenze.append(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :])
+            starting_point = 0                                 # Se la lunghezza della sequenza è troppo breve per estrarre una sottosequenza, 
+                                                               # inizia dall'inizio.
+        # Estrae la sottosequenza dalla sequenza di dati e la aggiunge alla lista delle sottosequenze
+        list_sottosequenze.append(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :])   
+    return np.array(list_sottosequenze)                        # Restituisce l'array NumPy contenente le sottosequenze estratte
 
-    return np.array(list_sottosequenze)
-
-#def rhs(numeric_data, numero_sotto_sequenze, ampiezza_sotto_sequenze):
-    lunghezza_sequenza = len(numeric_data)
-    list_sottosequenze = []  # Utilizziamo una lista vuota invece di list()
-
-    # Crea un set per tracciare le sottosequenze uniche
-    sottosequenze_set = set()
-
-    while len(list_sottosequenze) < numero_sotto_sequenze:
-        if lunghezza_sequenza > ampiezza_sotto_sequenze:
-            starting_point = random.randint(0, lunghezza_sequenza - ampiezza_sotto_sequenze)
-        else:
-            starting_point = 0
-
-        sottosequenza = tuple(numeric_data[starting_point:starting_point + ampiezza_sotto_sequenze, :].flatten())
-
-        # Verifica se la sottosequenza è unica
-        if sottosequenza not in sottosequenze_set:
-            sottosequenze_set.add(sottosequenza)
-            list_sottosequenze.append(np.array(sottosequenza).reshape(-1, 3))
-
-    return np.array(list_sottosequenze)
     
 ######  FUNZIONE BILSTM
 ##
@@ -206,8 +179,8 @@ def bilstm(units, input_shape, attn_inputs=False, dropout=0.):
     else:
         drop = Dropout(dropout)(bi_dir)                             # Applica il dropout ai risultati delle LSTM
 
-    output = Dense(1, activation='sigmoid')(drop)                   # Layer di output con attivazione sigmoidale
-
+    output = Dense(2, activation='softmax')(drop)
+    
     return Model(inputs=input, outputs=output)                      # Restituisci il modello con input e output definiti
 
 

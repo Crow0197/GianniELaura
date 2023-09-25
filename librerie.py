@@ -29,5 +29,5 @@ from colorama import Fore, Style
 import tensorflow as tf                          
 from tensorflow.keras.layers import Input, BatchNormalization, Bidirectional, LSTM, Attention, Dropout, Dense
 from tensorflow.keras.models import Model, Sequential
-
+from keras.utils import to_categorical
 #####################################################################################################################################################   

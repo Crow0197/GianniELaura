@@ -128,10 +128,10 @@ input_shape = (X_train.shape[1], X_train.shape[2])
 
 model = bilstm(units, input_shape=(X_train.shape[1], X_train.shape[2]), dropout=dropout)        # Modifica della definizione del modello per un
                                                                                                 # output binario
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])               # Compila il modello con la loss 'binary_crossentropy'
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-y_train = y_train.astype(int)                         # Si assicura che le etichette di destinazione siano binarie (0 o 1)
-y_test = y_test.astype(int)
+y_train = to_categorical(y_train, num_classes=2)
+y_test = to_categorical(y_test, num_classes=2)  
 
 model.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_test, y_test))       # Addestra il modello sui dati di addestramento
 
@@ -139,7 +139,7 @@ y_pred = model.predict(X_test)                        # Valuta il modello sui da
 y_pred = (y_pred > 0.5).astype(int)                   # Converte le predizioni in valori binari (0 o 1)
 print(f"{Fore.BLUE}{Style.BRIGHT}"+p5)
 print(f"{Fore.CYAN}{Style.BRIGHT}"+s6)   
-print(classification_report(y_test, y_pred))
+print(classification_report(y_test, y_pred, zero_division=1))
 
 y_pred = model.predict(X_test)                        # Valuta il modello sui dati di test
 y_pred = (y_pred > 0.5).astype(int)                   # Converte le predizioni in valori binari (0 o 1)

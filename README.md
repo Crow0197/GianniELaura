@@ -1,1 +1,0 @@
-# RHS-LOGNORMAL-on-Handwriting
